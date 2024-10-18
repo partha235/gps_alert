@@ -14,14 +14,14 @@ but=Pin(3,Pin.IN,Pin.PULL_UP)
 L=Pin('LED',Pin.OUT)
 gc.collect()
 
-ssid='NIKKI'     # your network/hotspot/ssid name.
-password='theriyalabro'    # your network/hotspot/ssid password.
+ssid=bps_ssid     # your network/hotspot/ssid name.
+password=bps_passw    # your network/hotspot/ssid password.
 
 # Your Account SID and Auth Token from twilio.com/console
-account_sid = "AC237275cbdd426272d1549f808f3a442a"
-auth_token = "4983d10719b601d489ae6d20f7e5a7f1"
-recipient_num = '+916380868060'
-sender_num = "+18647744641"
+account_sid = twilio_sid
+auth_token = twilio_tok
+recipient_num = '+919488790964'
+sender_num = twilio_num
 
 gpsModule = UART(0, baudrate=9600, tx=Pin(16), rx=Pin(17))
 print(gpsModule)
