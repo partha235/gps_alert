@@ -1,0 +1,7 @@
+from machine import Pin, UART
+import utime, time
+
+print("hi")
+
+# gps_module = UART(0, baudrate=9600, tx=Pin(16), rx=Pin(17))
+# print(gps_module)
