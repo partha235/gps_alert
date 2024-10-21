@@ -7,7 +7,10 @@ except:
 import network
 import gc
 import utime, time
-
+try:
+    from bps_cre import *     
+except:
+    pass
 
 print("hi")
 but=Pin(3,Pin.IN,Pin.PULL_UP)
@@ -16,6 +19,8 @@ gc.collect()
 
 ssid=bps_ssid     # your network/hotspot/ssid name.
 password=bps_passw    # your network/hotspot/ssid password.
+
+
 
 # Your Account SID and Auth Token from twilio.com/console
 account_sid = twilio_sid
@@ -123,6 +128,7 @@ while True:
     getGPS(gpsModule)
 
     print("working")
+    print('but = ',but.value())
 
     if(FIX_STATUS == True):
         print("Printing GPS data...")
@@ -135,13 +141,14 @@ while True:
                 
         FIX_STATUS = False
         if not but.value():
-            message=f"I am in danger i need help. I am at this location https://gps-coordinates.org/my-location.php?lat={latitude}&lng={longitude}"
+            message=f"I'm in danger, need help.MY location https://www.google.com/maps?q={latitude},{longitude}&z=17&hl=en"
             send_sms(recipient_num, sender_num, message, auth_token, account_sid)
 
     print("working")
     if(TIMEOUT == True):
         if not but.value():
-            message=f"I am in danger i need help. I am at this location https://gps-coordinates.org/my-location.php?lat=11.728462562127477&lng=79.74729695619484"
+            message=f"I'm in danger,help me https://www.google.com/maps?q=11.39432125437933,79.69728014705484&z=17&hl=en"
             send_sms(recipient_num, sender_num, message, auth_token, account_sid)
         print("No GPS data is found.")
         TIMEOUT = False
+
