@@ -2,9 +2,10 @@ from machine import Pin, UART, SoftI2C
 
 import utime, time
 
-print("hi")
+print("hi") 
 
-gpsModule = UART(0, baudrate=9600, tx=Pin(16), rx=Pin(17))
+gpsModule =UART(1,9600)
+gpsModule.init(9600,bits=8,parity=None,stop=1,rx=14,tx=16)
 print(gpsModule)
 
 buff = bytearray(255)
@@ -38,8 +39,11 @@ def getGPS(gpsModule):
                     longitude = -longitude
                 satellites = parts[7]
                 GPStime = parts[1][0:2] + ":" + parts[1][2:4] + ":" + parts[1][4:6]
+                message = f"https://www.google.com/maps?q={latitude},{longitude}&z=17&hl=en"
+                print(message)
                 FIX_STATUS = True
                 break
+            
                 
         if (time.time() > timeout):
             TIMEOUT = True

@@ -1,5 +1,3 @@
-
-
 from machine import Pin, UART, SoftI2C
 try:
   import urequests as requests
@@ -14,7 +12,8 @@ except:
 import utime, time
 
 print("hi")
-but=Pin(3,Pin.IN,Pin.PULL_UP)
+led=Pin(33,Pin.IN,Pin.PULL_UP)
+but=Pin(15,Pin.IN,Pin.PULL_UP)
 gc.collect()
 
 ssid=bps_ssid     # your network/hotspot/ssid name.
@@ -27,7 +26,8 @@ recipient_num = '+919488790964'
 sender_num = twilio_num
 
 
-gpsModule = UART(0, baudrate=9600, tx=Pin(16), rx=Pin(17))
+gpsModule =UART(1,9600)
+gpsModule.init(9600,bits=8,parity=None,stop=1,rx=14,tx=16)
 print(gpsModule)
 
 buff = bytearray(255)
@@ -112,7 +112,6 @@ def send_sms(recipient, sender,
     response.close()
 
 
-
 while True:
     
     getGPS(gpsModule)
@@ -130,12 +129,11 @@ while True:
                 
         FIX_STATUS = False
         if not but.value():
-            message = "https://www.google.com/maps?q=11.3845943,79.6976247&z=17&hl=en"
-            message=f"https://gps-coordinates.org/my-location.php?lat={latitude}&lng={longitude}"
+            message = f"https://www.google.com/maps?q={latitude},{longitude}&z=17&hl=en"
+            # message=f"https://gps-coordinates.org/my-location.php?lat={latitude}&lng={longitude}"
             send_sms(recipient_num, sender_num, message, auth_token, account_sid)
-
-    print("working")
-    if(TIMEOUT == True):
+        print("working")
+    else:
         message="no location"
         send_sms(recipient_num, sender_num, message, auth_token, account_sid)
 
