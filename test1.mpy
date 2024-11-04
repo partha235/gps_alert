@@ -1,4 +1,9 @@
 from machine import UART
 uart=UART(1,9600)
 uart.init(9600,bits=8,parity=None,stop=1,rx=14,tx=16)
-print(uart.read())
+
+while True:
+    line = uart.readline()
+    if line:
+        print("Received:", line)
+    time.sleep(1)
