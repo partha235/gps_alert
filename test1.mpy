@@ -1,9 +1,11 @@
-from machine import UART
-uart=UART(1,9600)
-uart.init(9600,bits=8,parity=None,stop=1,rx=14,tx=16)
+from machine import Pin
+from utime import sleep_ms
+import sys
 
+s=Pin(14,Pin.IN)
 while True:
-    line = uart.readline()
-    if line:
-        print("Received:", line)
-    time.sleep(1)
+    print(s.value())
+    if s.value():
+        print('sensor detected')
+        sys.exit()
+    # sleep_ms(10)

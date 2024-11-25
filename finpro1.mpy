@@ -1,0 +1,102 @@
+import network
+from machine import Pin, UART
+import ujson
+from umqtt.simple import MQTTClient
+import socket
+import urequests  # For making HTTP requests to the SMS service
+import json
+try:
+    from bps_cre import *     
+except:
+    pass
+
+# Replace these with your Adafruit IO credentials
+ADAFRUIT_IO_USERNAME = ADAFRUIT_AIO_USERNAME
+ADAFRUIT_IO_KEY = ADAFRUIT_AIO_KEY
+FEED_NAME = "location-alert"  # Make sure this matches your feed name exactly
+
+# Twilio API Credentials
+TWILIO_SID =  twilio_sid
+TWILIO_AUTH_TOKEN = twilio_tok
+TWILIO_PHONE_NUMBER = twilio_num
+TO_PHONE_NUMBER = '+919488790964' # The phone number to send the SMS to
+
+# Wi-Fi Credentials
+ssid=bps_ssid     # your network/hotspot/ssid name.
+password=bps_passw    # your network/hotspot/ssid password.
+
+
+# Button Setup (optional if you want to trigger manually)
+button = Pin(15, Pin.IN)
+
+# Connect to Wi-Fi
+def connect_wifi():
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    wlan.connect(ssid, password)
+    while not wlan.isconnected():
+        pass
+    print('Connected to WiFi:', wlan.ifconfig())
+
+# Function to send SMS via Twilio
+def send_sms(location_message):
+    url = 'https://api.twilio.com/2010-04-01/Accounts/{}/Messages.json'.format(TWILIO_SID)
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    data = {
+        'To': TO_PHONE_NUMBER,
+        'From': TWILIO_PHONE_NUMBER,
+        'Body': location_message
+    }
+    response = urequests.post(url, data=json.dumps(data), headers=headers, auth=(TWILIO_SID, TWILIO_AUTH_TOKEN))
+    print('SMS sent:', response.text)
+
+# Serve the HTML page
+def serve_html():
+    with open('index.html', 'r') as f:
+        return f.read()
+
+# Set up the ESP32 as a Web Server
+def start_web_server():
+    addr = socket.getaddrinfo('0.0.0.0', 80)[0][-1]
+    s = socket.socket()
+    s.bind(addr)
+    s.listen(1)
+    print('Listening on', addr)
+
+    while True:
+        cl, addr = s.accept()
+        print('Client connected from', addr)
+        request = cl.recv(1024).decode()
+
+        if 'GET /' in request:
+            response = serve_html()
+            cl.send('HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n' + response)
+
+        if 'POST /send-sms' in request:
+            # Find the request body, which contains the form data
+            form_data = request.split('\r\n\r\n')[-1]
+
+            # Split the form data and extract values
+            params = dict(x.split('=') for x in form_data.split('&'))
+            latitude = params.get('latitude', '')
+            longitude = params.get('longitude', '')
+
+            print('Latitude:', latitude, 'Longitude:', longitude)
+
+            # Send SMS with the location
+            location_message = "My location is: Latitude {}, Longitude {}".format(latitude, longitude)
+            send_sms(location_message)
+            
+            # Send response back to the client
+            cl.send('HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\nSMS Sent!')
+
+        cl.close()
+
+# Main loop
+def main():
+    connect_wifi()
+    start_web_server()
+
+# Run the main function
+if __name__ == '__main__':
+    main()

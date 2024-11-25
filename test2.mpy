@@ -4,8 +4,11 @@ import utime, time
 
 print("hi") 
 
-gpsModule =UART(1,9600)
-gpsModule.init(9600,bits=8,parity=None,stop=1,rx=14,tx=16)
+# gpsModule =UART(1,9600)
+# gpsModule.init(9600,bits=8,parity=None,stop=1,rx=14,tx=16)
+# print(gpsModule)
+
+gpsModule =UART(0,9600,tx=Pin(16),rx=Pin(17))
 print(gpsModule)
 
 buff = bytearray(255)
