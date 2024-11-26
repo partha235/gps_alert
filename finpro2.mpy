@@ -1,48 +1,52 @@
 from machine import Pin, UART
 import network
 import time
-import urequests as requests
 from umqtt.simple import MQTTClient
-
-# Credentials and setup
 try:
-    from bps_cre import *
+    import urequests as requests
 except:
-    pass
+    import requests
+import gc
 
-# Twilio SMS Credentials
-TWILIO_SID = twilio_sid
-TWILIO_AUTH_TOKEN = twilio_tok
-TWILIO_PHONE_NUMBER = twilio_num
-TO_PHONE_NUMBER = '+919488790964'
+# Adafruit IO credentials
+ADAFRUIT_IO_USERNAME = "your_aio_username"  # Replace with your Adafruit IO username
+ADAFRUIT_IO_KEY = "your_aio_key"           # Replace with your Adafruit IO key
+FEED_NAME = "location-alert"               # Replace with your feed name
 
-# Adafruit IO Credentials
-ADAFRUIT_IO_USERNAME = ADAFRUIT_AIO_USERNAME
-ADAFRUIT_IO_KEY = ADAFRUIT_AIO_KEY
-FEED_NAME = "location-alert"
+# Wi-Fi credentials
+ssid = "your_wifi_ssid"  # Replace with your Wi-Fi SSID
+password = "your_wifi_password"  # Replace with your Wi-Fi password
 
-# Wi-Fi Credentials
-SSID = bps_ssid
-PASSWORD = bps_passw
+# Twilio SMS credentials
+account_sid = "your_twilio_sid"  # Replace with your Twilio SID
+auth_token = "your_twilio_auth_token"  # Replace with your Twilio Auth Token
+recipient_num = "+919XXXXXXXXX"  # Replace with recipient phone number
+sender_num = "your_twilio_number"  # Replace with your Twilio phone number
 
-# GPS and Button setup
-gps = UART(1, baudrate=9600, tx=16, rx=17, timeout=500)
-button = Pin(15, Pin.IN, Pin.PULL_UP)
+# GPS UART setup
+gpsModule = UART(1, 9600, tx=17, rx=16, timeout=500)
+gc.collect()
+
+# Predefined fallback GPS coordinates
+DEFAULT_LATITUDE = 11.384609
+DEFAULT_LONGITUDE = 79.697655
 
 # Connect to Wi-Fi
-def connect_wifi():
+def connect_wifi(ssid, password):
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
-    wlan.connect(SSID, PASSWORD)
-    while not wlan.isconnected():
-        pass
-    print("Connected to WiFi:", wlan.ifconfig())
+    if not wlan.isconnected():
+        print("Connecting to WiFi...")
+        wlan.connect(ssid, password)
+        while not wlan.isconnected():
+            pass
+    print("Connected to WiFi! IP Address:", wlan.ifconfig())
 
-# Parse GPS Data
+# Parse GPS data
 def parse_gps():
-    timeout = time.time() + 5
+    timeout = time.time() + 10
     while time.time() < timeout:
-        line = gps.readline()
+        line = gpsModule.readline()
         if line and b"GPGGA" in line:
             try:
                 parts = line.decode('utf-8').split(",")
@@ -54,55 +58,94 @@ def parse_gps():
                 print("Error parsing GPS:", e)
     return None, None
 
-# Convert GPS format to decimal degrees
+# Convert GPS data to degrees
 def convert_to_degrees(raw, direction):
-    raw_float = float(raw)
-    degrees = int(raw_float / 100)
-    minutes = raw_float - degrees * 100
-    decimal_degrees = degrees + minutes / 60
-    if direction in ['S', 'W']:
-        decimal_degrees = -decimal_degrees
-    return decimal_degrees
+    try:
+        raw_float = float(raw)
+        degrees = int(raw_float / 100)
+        minutes = raw_float - degrees * 100
+        decimal_degrees = degrees + minutes / 60
+        if direction in ['S', 'W']:
+            decimal_degrees = -decimal_degrees
+        return float(decimal_degrees)
+    except Exception as e:
+        print("Error converting degrees:", e)
+        return None
 
-# Send SMS via Twilio
-def send_sms(message):
-    url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_SID}/Messages.json"
-    data = f"To={TO_PHONE_NUMBER}&From={TWILIO_PHONE_NUMBER}&Body={message}"
+# Set up MQTT client
+def setup_mqtt():
+    client = MQTTClient("ESP32", "io.adafruit.com", user=ADAFRUIT_IO_USERNAME, password=ADAFRUIT_IO_KEY)
+    client.connect()
+    print("Connected to Adafruit IO MQTT!")
+    return client
+
+# Publish JSON location data
+def publish_location_json(client, value, latitude, longitude, elevation=0):
+    payload = {
+        "value": value,
+        "lat": latitude,
+        "lon": longitude,
+        "ele": elevation
+    }
+    print("Publishing JSON to Adafruit IO:", payload)
+    try:
+        topic = f"{ADAFRUIT_IO_USERNAME}/feeds/{FEED_NAME}/json"
+        client.publish(topic, str(payload).replace("'", '"').encode())
+        print("JSON data published successfully!")
+    except Exception as e:
+        print("Error publishing JSON data:", e)
+
+# Publish CSV location data
+def publish_location_csv(client, value, latitude, longitude, elevation=0):
+    payload = f"{value},{latitude},{longitude},{elevation}"
+    print("Publishing CSV to Adafruit IO:", payload)
+    try:
+        topic = f"{ADAFRUIT_IO_USERNAME}/feeds/{FEED_NAME}/csv"
+        client.publish(topic, payload.encode())
+        print("CSV data published successfully!")
+    except Exception as e:
+        print("Error publishing CSV data:", e)
+
+# Send SMS
+def send_sms(recipient, sender, message, auth_token, account_sid):
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-    response = requests.post(url, data=data, auth=(TWILIO_SID, TWILIO_AUTH_TOKEN), headers=headers)
-    print("SMS Response:", response.text)
-    response.close()
+    data = f"To={recipient}&From={sender}&Body={message}"
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+    try:
+        response = requests.post(url, data=data, auth=(account_sid, auth_token), headers=headers)
+        if response.status_code == 201:
+            print("SMS sent successfully!")
+        else:
+            print("Error sending SMS:", response.text)
+        response.close()
+    except Exception as e:
+        print("Error sending SMS:", e)
 
-# Publish location to Adafruit IO
-def publish_location(client, latitude, longitude):
-    payload = f"{latitude},{longitude}"
-    topic = f"{ADAFRUIT_IO_USERNAME}/feeds/{FEED_NAME}"
-    client.publish(topic, payload.encode())
-    print("Published to Adafruit IO:", payload)
-
-# Main Program
+# Main function
 def main():
-    connect_wifi()
-    mqtt_client = MQTTClient("ESP32", "io.adafruit.com", user=ADAFRUIT_IO_USERNAME, password=ADAFRUIT_IO_KEY)
-    mqtt_client.connect()
+    connect_wifi(ssid, password)
+    mqtt_client = setup_mqtt()
 
     while True:
         latitude, longitude = parse_gps()
+        if latitude is None or longitude is None:
+            print("No GPS data available. Using fallback coordinates.")
+            latitude, longitude = DEFAULT_LATITUDE, DEFAULT_LONGITUDE
 
-        if latitude and longitude:
-            print(f"Location: Latitude={latitude}, Longitude={longitude}")
-            publish_location(mqtt_client, latitude, longitude)
-            
-            if not button.value():  # Button pressed
-                message = f"help me https://www.google.com/maps?q={latitude},{longitude}"
-                send_sms(message)
-        else:
-            print("No GPS data available.")
-            if not button.value():  # Button pressed
-                message = f"help me"
-                send_sms(message)
-        
-        time.sleep(30)  # Adjust delay as needed
+        print(f"Latitude: {latitude}, Longitude: {longitude}")
+
+        # Publish to Adafruit IO
+        value = 22.587  # Example value; replace with actual data
+        elevation = 0   # Replace with actual elevation if available
+        publish_location_json(mqtt_client, value, latitude, longitude, elevation)
+        # Optionally use CSV instead:
+        # publish_location_csv(mqtt_client, value, latitude, longitude, elevation)
+
+        # Send SMS
+        location_message = f"https://www.google.com/maps?q={latitude},{longitude}&z=17&hl=en"
+        send_sms(recipient_num, sender_num, location_message, auth_token, account_sid)
+
+        time.sleep(30)
 
 if __name__ == "__main__":
     main()

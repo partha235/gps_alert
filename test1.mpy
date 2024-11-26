@@ -1,11 +1,76 @@
+from umqtt.simple import MQTTClient
+import json
+from utime import sleep_ms,sleep
+import network 
 from machine import Pin
-from utime import sleep_ms
 import sys
+import gc 
+try:
+    from bps_cre import *     
+except:
+    pass
 
-s=Pin(14,Pin.IN)
-while True:
-    print(s.value())
-    if s.value():
-        print('sensor detected')
-        sys.exit()
-    # sleep_ms(10)
+gc.collect()
+
+x=Pin(2,Pin.OUT)
+
+mqtt_client_id      = bytes('bps', 'utf-8')
+
+ssid=bps_ssid     # your network/hotspot/ssid name.
+passw=bps_passw    # your network/hotspot/ssid password.
+
+
+
+
+# Adafruit IO credentials
+ADAFRUIT_IO_URL     = 'io.adafruit.com' 
+ADAFRUIT_IO_USERNAME = ada_user
+ADAFRUIT_IO_KEY = ada_tok
+FEED_NAME = "location-alert"  # Make sure this matches your feed name exactly
+
+
+
+def connect_wifi():
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    if not wlan.isconnected():
+        print("Connecting to WiFi...")
+        wlan.connect(ssid,passw)
+        while not wlan.isconnected():
+            pass
+    print("Connected! IP address:", wlan.ifconfig()[0])
+
+def setup_mqtt():
+    client = MQTTClient(client_id=mqtt_client_id, 
+                    server=ADAFRUIT_IO_URL, 
+                    user=ADAFRUIT_IO_USERNAME, 
+                    password=ADAFRUIT_IO_KEY,
+                    ssl=False)
+    client.connect()
+    return client
+
+
+
+def publish_location(client):
+    # Format the data as a CSV string: "lat,lon"
+    csv_data = "22.587,11.384609,79.697655,112"
+    print("Publishing to Adafruit IO:", csv_data)
+    try:
+        topic = f"{ADAFRUIT_IO_USERNAME}/feeds/{FEED_NAME}/csv"
+        client.publish(topic,csv_data)
+        print("Data published successfully!")
+    except Exception as e:
+        print("Error publishing data:", e)
+
+
+def main():
+    connect_wifi()
+    mqtt_client = setup_mqtt()
+    
+    while True:
+        print("Fetching GPS data...")      
+        publish_location(mqtt_client)
+        sleep(10)
+
+if __name__ == "__main__":
+    main()

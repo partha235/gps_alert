@@ -1,17 +1,16 @@
-from machine import Pin, UART, SoftI2C
+from machine import Pin, UART
+import gc
+import utime
+import time
 
-import utime, time
+print("hi")
+led = Pin(33, Pin.OUT)  # Changed to Pin.OUT for controlling LED status
+gc.collect()
 
-print("hi") 
+# GPS Module Setup
+gpsModule = UART(2, baudrate=9600)  # UART for GPS communication
 
-# gpsModule =UART(1,9600)
-# gpsModule.init(9600,bits=8,parity=None,stop=1,rx=14,tx=16)
-# print(gpsModule)
-
-gpsModule =UART(0,9600,tx=Pin(16),rx=Pin(17))
 print(gpsModule)
-
-buff = bytearray(255)
 
 TIMEOUT = False
 FIX_STATUS = False
@@ -21,18 +20,19 @@ longitude = ""
 satellites = ""
 GPStime = ""
 
+# GPS Parsing Function
 def getGPS(gpsModule):
     global FIX_STATUS, TIMEOUT, latitude, longitude, satellites, GPStime
     
-    timeout = time.time() + 10
+    timeout = time.time() + 5  # Timeout after 5 seconds
     while True:
         line = gpsModule.readline()
         if line:
             buff = str(line)
             parts = buff.split(',')
             
-            if parts[0] == "b'$GPGGA" and len(parts) == 15:
-                if all(parts[1:8]):  # Check if all necessary parts are present
+            if parts[0] == "b'$GPGGA" and len(parts) == 15:  # Check for valid GPS sentence
+                if all(parts[1:8]):  # Ensure necessary parts are present
                     print(buff)
                     latitude = convertToDegree(parts[2])
                     if parts[3] == 'S':
@@ -46,39 +46,41 @@ def getGPS(gpsModule):
                     print(message)
                     FIX_STATUS = True
                     break
-            
         if time.time() > timeout:
             TIMEOUT = True
             break
-        utime.sleep_ms(50)
+        utime.sleep_ms(10)
 
-        
+# Convert GPS coordinates to degrees
 def convertToDegree(RawDegrees):
-
     RawAsFloat = float(RawDegrees)
-    firstdigits = int(RawAsFloat/100) 
-    nexttwodigits = RawAsFloat - float(firstdigits*100) 
+    firstdigits = int(RawAsFloat / 100) 
+    nexttwodigits = RawAsFloat - float(firstdigits * 100)
     
-    Converted = float(firstdigits + nexttwodigits/60.0)
+    Converted = float(firstdigits + nexttwodigits / 60.0)
     Converted = '{0:.6f}'.format(Converted) 
     return str(Converted)
-    
-    
+
+# Main Loop
 while True:
+    led.on()  # Turn LED on to indicate the loop is running
     
-    getGPS(gpsModule)
-    if(FIX_STATUS == True):
-        print("Printing GPS data...")
-        print(" ")
-        print("Latitude: "+latitude)
-        print("Longitude: "+longitude)
-        print("Satellites: " +satellites)
-        print("Time: "+GPStime)
-        print("----------------------")
-                
-        FIX_STATUS = False
+    getGPS(gpsModule)  # Get the GPS data
     
     print("working")
-    if(TIMEOUT == True):
+
+    if FIX_STATUS:
+        print("Printing GPS data...")
+        print("Latitude: " + latitude)
+        print("Longitude: " + longitude)
+        print("Satellites: " + satellites)
+        print("Time: " + GPStime)
+        print("----------------------")
+        
+        FIX_STATUS = False  # Reset the fix status for the next iteration
+    else:
         print("No GPS data is found.")
-        TIMEOUT = False
+        TIMEOUT = False  # Reset the timeout flag
+
+    utime.sleep(1)  # Optional: Pause for 1 second between cycles to avoid overload
+

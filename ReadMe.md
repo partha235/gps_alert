@@ -73,3 +73,5 @@ This GPS-based location-sharing device can be used in various applications:
 - **Battery Optimization**: Implement low-power modes on the ESP32 and GPS module to extend battery life.
 - **Improved Connectivity**: Integrate GSM/GPRS functionality to eliminate reliance on Wi-Fi.
 - **Enhanced Security**: Add authentication to prevent unauthorized access to the device’s SMS functionality.
+
+[adafruit io notes](https://learn.adafruit.com/adafruit-io/mqtt-api)

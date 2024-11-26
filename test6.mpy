@@ -27,7 +27,7 @@ sender_num = twilio_num
 
 
 gpsModule =UART(1,9600)
-gpsModule.init(9600,bits=8,parity=None,stop=1,rx=14,tx=16)
+gpsModule.init(baudrate=9600,bits=8,parity=None,stop=1,rx=14,tx=16)
 print(gpsModule)
 
 buff = bytearray(255)
