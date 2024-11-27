@@ -170,6 +170,8 @@ def main():
             if sen.value():
                 message = f"help https://io.adafruit.com/bps235/dashboards/gps-track"
                 send_sms(recipient_num, sender_num, message, auth_token, account_sid)
+                buz.value(0)
+                sleep(5)
 
         # button alert 
         if not but.value():
