@@ -12,6 +12,12 @@ try:
     from bps_cre import *     
 except:
     pass
+  
+  # Twilio API Credentials
+TWILIO_SID =  twilio_sid
+TWILIO_AUTH_TOKEN = twilio_tok
+TWILIO_PHONE_NUMBER = twilio_num
+TO_PHONE_NUMBER = '+919488790964' # The phone number to send the SMS to
 
 # Replace these with your Adafruit IO credentials
 ADAFRUIT_IO_URL     = 'io.adafruit.com' 
