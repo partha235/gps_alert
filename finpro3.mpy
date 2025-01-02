@@ -2,6 +2,7 @@ import network
 from umqtt.simple import MQTTClient
 from machine import Pin, UART
 from utime import sleep, sleep_ms,time
+import ssd1306
 try:
   import urequests as requests
 except:
@@ -33,7 +34,7 @@ DEFAULT_LONGITUDE = 79.697655
 print("hi")
 buz=Pin(2,Pin.OUT)
 but=Pin(15,Pin.IN,Pin.PULL_UP)
-sen=Pin(12,Pin.IN)
+i2c = SoftI2C(scl=Pin(12), sda=Pin(13)) 
 gc.collect()
 
 
@@ -163,13 +164,6 @@ def main():
         print("working")       
         print(f"Location: Latitude={latitude}, Longitude={longitude}")
         publish_location(mqtt_client, latitude, longitude)
-
-        # vibration sensor
-        if sen.value():
-            sleep(15)
-            if sen.value():
-                message = f"help https://io.adafruit.com/bps235/dashboards/gps-track"
-                send_sms(recipient_num, sender_num, message, auth_token, account_sid)
 
         # button alert 
         if not but.value():
