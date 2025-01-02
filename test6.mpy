@@ -9,9 +9,9 @@ try:
     from bps_cre import *     
 except:
     pass
-import utime, time
+import utime, time               
 
-print("hi")
+print("hi")                                                                                    
 led=Pin(33,Pin.IN,Pin.PULL_UP)
 but=Pin(15,Pin.IN,Pin.PULL_UP)
 gc.collect()

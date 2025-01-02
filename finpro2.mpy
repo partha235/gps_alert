@@ -1,151 +1,187 @@
-from machine import Pin, UART
 import network
-import time
 from umqtt.simple import MQTTClient
+from machine import Pin, UART
+from utime import sleep, sleep_ms,time
 try:
-    import urequests as requests
+  import urequests as requests
 except:
-    import requests
+  import requests
+import network
 import gc
+try:
+    from bps_cre import *     
+except:
+    pass
 
-# Adafruit IO credentials
-ADAFRUIT_IO_USERNAME = "your_aio_username"  # Replace with your Adafruit IO username
-ADAFRUIT_IO_KEY = "your_aio_key"           # Replace with your Adafruit IO key
-FEED_NAME = "location-alert"               # Replace with your feed name
+# Replace these with your Adafruit IO credentials
+ADAFRUIT_IO_URL     = 'io.adafruit.com' 
+ADAFRUIT_IO_USERNAME = ada_user
+ADAFRUIT_IO_KEY = ada_tok
+FEED_NAME = "location-alert"  # Make sure this matches your feed name exactly
+
+mqtt_client_id      = bytes('bps', 'utf-8')
 
 # Wi-Fi credentials
-ssid = "your_wifi_ssid"  # Replace with your Wi-Fi SSID
-password = "your_wifi_password"  # Replace with your Wi-Fi password
+SSID = bps_ssid
+PASSWORD = bps_passw
 
-# Twilio SMS credentials
-account_sid = "your_twilio_sid"  # Replace with your Twilio SID
-auth_token = "your_twilio_auth_token"  # Replace with your Twilio Auth Token
-recipient_num = "+919XXXXXXXXX"  # Replace with recipient phone number
-sender_num = "your_twilio_number"  # Replace with your Twilio phone number
-
-# GPS UART setup
-gpsModule = UART(1, 9600, tx=17, rx=16, timeout=500)
-gc.collect()
-
-# Predefined fallback GPS coordinates
+# Predefined fallback GPS coordinates (as floats, not strings)
 DEFAULT_LATITUDE = 11.384609
 DEFAULT_LONGITUDE = 79.697655
 
-# Connect to Wi-Fi
-def connect_wifi(ssid, password):
+# declaring pins
+print("hi")
+buz=Pin(2,Pin.OUT)
+but=Pin(15,Pin.IN,Pin.PULL_UP)
+sen=Pin(12,Pin.IN)
+gc.collect()
+
+
+# GPS module setup
+gps = UART(1,9600)
+gps.init(baudrate=9600,bits=8,parity=None,stop=1,rx=14,tx=16)
+print(gps)
+
+buff = bytearray(255)
+
+# Declare latitude and longitude as global variables
+latitude = None
+longitude = None
+buz.value(1)
+
+
+def connect_wifi():
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
     if not wlan.isconnected():
         print("Connecting to WiFi...")
-        wlan.connect(ssid, password)
+        wlan.connect(SSID, PASSWORD)
         while not wlan.isconnected():
             pass
-    print("Connected to WiFi! IP Address:", wlan.ifconfig())
+    print("Connected! IP address:", wlan.ifconfig()[0])
 
-# Parse GPS data
-def parse_gps():
-    timeout = time.time() + 10
-    while time.time() < timeout:
+# GPS Parsing Function
+def getGPS(gpsModule):
+    global latitude, longitude, FIX_STATUS, TIMEOUT, satellites, GPStime
+    
+    timeout = time() + 5  # Timeout after 5 seconds
+    while True:
         line = gpsModule.readline()
-        if line and b"GPGGA" in line:
-            try:
-                parts = line.decode('utf-8').split(",")
-                if len(parts) > 5 and parts[2] and parts[4]:
-                    latitude = convert_to_degrees(parts[2], parts[3])
-                    longitude = convert_to_degrees(parts[4], parts[5])
-                    return latitude, longitude
-            except Exception as e:
-                print("Error parsing GPS:", e)
-    return None, None
+        if line:
+            buff = str(line)
+            parts = buff.split(',')
+            
+            if parts[0] == "b'$GPGGA" and len(parts) == 15:  # Check for valid GPS sentence
+                if all(parts[1:8]):  # Ensure necessary parts are present
+                    print(buff)
+                    latitude = convertToDegree(parts[2])
+                    if parts[3] == 'S':
+                        latitude = -latitude
+                    longitude = convertToDegree(parts[4])
+                    if parts[5] == 'W':
+                        longitude = -longitude
+                    satellites = parts[7]
+                    GPStime = parts[1][0:2] + ":" + parts[1][2:4] + ":" + parts[1][4:6]
+                    message = f"https://www.google.com/maps?q={latitude},{longitude}&z=17&hl=en"
+                    print(message)
+                    FIX_STATUS = True
+                    break
+        if time() > timeout:
+            TIMEOUT = True
+            break
+        sleep_ms(10)
 
-# Convert GPS data to degrees
-def convert_to_degrees(raw, direction):
-    try:
-        raw_float = float(raw)
-        degrees = int(raw_float / 100)
-        minutes = raw_float - degrees * 100
-        decimal_degrees = degrees + minutes / 60
-        if direction in ['S', 'W']:
-            decimal_degrees = -decimal_degrees
-        return float(decimal_degrees)
-    except Exception as e:
-        print("Error converting degrees:", e)
-        return None
+# Convert GPS coordinates to degrees
+def convertToDegree(RawDegrees):
+    RawAsFloat = float(RawDegrees)
+    firstdigits = int(RawAsFloat / 100) 
+    nexttwodigits = RawAsFloat - float(firstdigits * 100)
+    
+    Converted = float(firstdigits + nexttwodigits / 60.0)
+    Converted = '{0:.6f}'.format(Converted) 
+    return str(Converted)
 
-# Set up MQTT client
 def setup_mqtt():
-    client = MQTTClient("ESP32", "io.adafruit.com", user=ADAFRUIT_IO_USERNAME, password=ADAFRUIT_IO_KEY)
+    client = MQTTClient(client_id=mqtt_client_id, 
+                    server=ADAFRUIT_IO_URL, 
+                    user=ADAFRUIT_IO_USERNAME, 
+                    password=ADAFRUIT_IO_KEY,
+                    ssl=False)
     client.connect()
-    print("Connected to Adafruit IO MQTT!")
     return client
 
-# Publish JSON location data
-def publish_location_json(client, value, latitude, longitude, elevation=0):
-    payload = {
-        "value": value,
-        "lat": latitude,
-        "lon": longitude,
-        "ele": elevation
-    }
-    print("Publishing JSON to Adafruit IO:", payload)
-    try:
-        topic = f"{ADAFRUIT_IO_USERNAME}/feeds/{FEED_NAME}/json"
-        client.publish(topic, str(payload).replace("'", '"').encode())
-        print("JSON data published successfully!")
-    except Exception as e:
-        print("Error publishing JSON data:", e)
-
-# Publish CSV location data
-def publish_location_csv(client, value, latitude, longitude, elevation=0):
-    payload = f"{value},{latitude},{longitude},{elevation}"
-    print("Publishing CSV to Adafruit IO:", payload)
+def publish_location(client, latitude, longitude):
+    # Format the data as a CSV string: "lat,lon"
+    payload = f"22.56,{latitude},{longitude}"
+    print("payload = ", payload)
+    print(type(payload))
+    print("Publishing to Adafruit IO:", payload)
     try:
         topic = f"{ADAFRUIT_IO_USERNAME}/feeds/{FEED_NAME}/csv"
-        client.publish(topic, payload.encode())
-        print("CSV data published successfully!")
+        client.publish(topic, payload)
+        print("Data published successfully!")
     except Exception as e:
-        print("Error publishing CSV data:", e)
+        print("Error publishing data:", e)
 
-# Send SMS
-def send_sms(recipient, sender, message, auth_token, account_sid):
+def send_sms(recipient, sender,
+             message, auth_token, account_sid):
+      
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-    data = f"To={recipient}&From={sender}&Body={message}"
-    url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
-    try:
-        response = requests.post(url, data=data, auth=(account_sid, auth_token), headers=headers)
-        if response.status_code == 201:
-            print("SMS sent successfully!")
-        else:
-            print("Error sending SMS:", response.text)
-        response.close()
-    except Exception as e:
-        print("Error sending SMS:", e)
+    data = "To={}&From={}&Body={}".format(recipient,sender,message)
+    url = "https://api.twilio.com/2010-04-01/Accounts/{}/Messages.json".format(account_sid)
+    
+    print("Trying to send SMS with Twilio")
+    
+    response = requests.post(url,
+                             data=data,
+                             auth=(account_sid,auth_token),
+                             headers=headers)
+    
+    if response.status_code == 201:
+        print("SMS sent!")
+    else:
+        print("Error sending SMS: {}".format(response.text))
+    
+    response.close()
 
-# Main function
+
+
 def main():
-    connect_wifi(ssid, password)
+    global latitude, longitude  # Ensure latitude and longitude are accessible here
+    connect_wifi()
     mqtt_client = setup_mqtt()
-
+    
     while True:
-        latitude, longitude = parse_gps()
-        if latitude is None or longitude is None:
-            print("No GPS data available. Using fallback coordinates.")
-            latitude, longitude = DEFAULT_LATITUDE, DEFAULT_LONGITUDE
+        print("Fetching GPS data...")
+        getGPS(gps)  # Ensure GPS data is updated
+        
+        if latitude is None or longitude is None:  # If no GPS data is available
+            print("No GPS data available. Using fallback location.")
+            latitude = DEFAULT_LATITUDE
+            longitude = DEFAULT_LONGITUDE 
+ 
+        print("working")       
+        print(f"Location: Latitude={latitude}, Longitude={longitude}")
+        publish_location(mqtt_client, latitude, longitude)
 
-        print(f"Latitude: {latitude}, Longitude: {longitude}")
+        # vibration sensor
+        if sen.value():
+            sleep(15)
+            if sen.value():
+                message = f"help https://io.adafruit.com/bps235/dashboards/gps-track"
+                send_sms(recipient_num, sender_num, message, auth_token, account_sid)
 
-        # Publish to Adafruit IO
-        value = 22.587  # Example value; replace with actual data
-        elevation = 0   # Replace with actual elevation if available
-        publish_location_json(mqtt_client, value, latitude, longitude, elevation)
-        # Optionally use CSV instead:
-        # publish_location_csv(mqtt_client, value, latitude, longitude, elevation)
+        # button alert 
+        if not but.value():
+            message = f"help https://io.adafruit.com/bps235/dashboards/gps-track"
+            send_sms(recipient_num, sender_num, message, auth_token, account_sid)
+            buz.value(0)
+            sleep(5)
 
-        # Send SMS
-        location_message = f"https://www.google.com/maps?q={latitude},{longitude}&z=17&hl=en"
-        send_sms(recipient_num, sender_num, location_message, auth_token, account_sid)
+        print("working")
 
-        time.sleep(30)
+        sleep(30)
 
 if __name__ == "__main__":
     main()
+
