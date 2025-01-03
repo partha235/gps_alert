@@ -6,27 +6,25 @@ from utime import sleep_ms, localtime, mktime
 gc.collect()
 
 # WiFi Credentials
-ssid = "Nokiabps"     # Your network SSID
-passw = "bps12345"    # Your network password
+ssid = "your_wifi_ssid"     # Your network SSID
+passw = "your_wifi_password"  # Your network password
 
 # Time Zone Offset (in seconds)
 # Example: IST (UTC+5:30) = (5 * 3600) + (30 * 60) = 19800 seconds
 TIME_ZONE_OFFSET = 5 * 3600 + 30 * 60
 
 # Connect to WiFi
-sta = network.WLAN(network.STA_IF)
-sta.active(True)
-sta.connect(ssid, passw)
-sleep_ms(200)
+def connect_wifi():
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    if not wlan.isconnected():
+        print("Connecting to WiFi...")
+        wlan.connect(SSID, PASSWORD)
+        while not wlan.isconnected():
+            pass
+    # print("Connected! IP address:", wlan.ifconfig()[0])
 
-while not sta.isconnected():
-    pass
 
-if sta.isconnected():
-    print("Connected to WiFi. Status: ", sta.isconnected())
-
-# Sync Time with NTP
-ntp.settime()
 
 # Function to Get Local Time with Time Zone Adjustment
 def get_local_time():
@@ -36,6 +34,11 @@ def get_local_time():
 
 # Main Loop
 while True:
+    connect_wifi()
+    # Sync Time with NTP
+    ntp.settime()
     adjusted_time = get_local_time()
-    print("Local Time:", adjusted_time)
+    date=str(adjusted_time[2])+"/"+str(adjusted_time[1])+"/"+str(adjusted_time[0])
+    ti=str(adjusted_time[3])+":"+str(adjusted_time[4])+":"+str(adjusted_time[5])
+    print("time :",ti)
     sleep_ms(500)
