@@ -9,22 +9,22 @@ import urequests as requests
 
 # Replace these with your Adafruit IO credentials
 ADAFRUIT_IO_URL = 'io.adafruit.com'
-ADAFRUIT_IO_USERNAME = 'your_adafruit_username'  # Replace with your Adafruit IO username
-ADAFRUIT_IO_KEY = 'your_adafruit_key'  # Replace with your Adafruit IO key
-FEED_NAME = "location-alert"  # Ensure it matches the feed name in Adafruit IO
+ADAFRUIT_IO_USERNAME = 'adafruit_username'  # Replace with your Adafruit IO username
+ADAFRUIT_IO_KEY = 'adafruit_key'  # Replace with your Adafruit IO key
+FEED_NAME = "Feed"  # Ensure it matches the feed name in Adafruit IO
 
 # Twilio SMS credentials
-recipient_num = "+1234567890"  # Replace with recipient's phone number
-sender_num = "+1987654321"  # Replace with your Twilio number
-auth_token = "your_twilio_auth_token"  # Replace with your Twilio Auth Token
-account_sid = "your_twilio_account_sid"  # Replace with your Twilio SID
+recipient_num = "+91xxxxxxxxxx"  # Replace with recipient's phone number
+sender_num = "+1xxxxxxxxxx"  # Replace with your Twilio number
+auth_token = "twilio_tok"  # Replace with your Twilio Auth Token
+account_sid = "twilio_ssid"  # Replace with your Twilio SID
 
 # MQTT Client ID
 mqtt_client_id = b'bps'
 
 # Wi-Fi credentials
-SSID = "your_wifi_ssid"
-PASSWORD = "your_wifi_password"
+SSID = "hello"   # name must be without space
+PASSWORD = "hello12345"
 
 # GPS fallback coordinates
 DEFAULT_LATITUDE = 11.384609
@@ -34,12 +34,12 @@ DEFAULT_LONGITUDE = 79.697655
 TIME_ZONE_OFFSET = 5 * 3600 + 30 * 60
 
 # Pins
-buz = Pin(2, Pin.OUT)
 but = Pin(15, Pin.IN, Pin.PULL_UP)
-i2c = SoftI2C(scl=Pin(12), sda=Pin(13))
+led = Pin(33,Pin.OUT)
 
-# Oled display config
-i2c = SoftI2C(0,scl=Pin(12), sda=Pin(13)) 
+
+# I2C and OLED Display
+i2c = SoftI2C(scl=Pin(13), sda=Pin(2)) 
 oled_width = 128
 oled_height = 64
 oled = ssd1306.SSD1306_I2C(oled_width, oled_height, i2c)
@@ -50,7 +50,6 @@ gps = UART(1, baudrate=9600, bits=8, parity=None, stop=1, rx=14, tx=16)
 # Initialize variables
 latitude = None
 longitude = None
-buz.value(1)  # Turn buzzer off initially
 gc.collect()
 
 
@@ -61,6 +60,7 @@ def connect_wifi():
     if not wlan.isconnected():
         print("Connecting to WiFi...")
         wlan.connect(SSID, PASSWORD)
+        sleep_ms(200)
         while not wlan.isconnected():
             pass
     print("Connected! IP address:", wlan.ifconfig()[0])
@@ -143,20 +143,34 @@ def get_local_time():
     return localtime(local_time)
 
 
+# Display Time on OLED
+def display_time(adjusted_time):
+    date = f"{adjusted_time[2]:02}/{adjusted_time[1]:02}/{adjusted_time[0]}"
+    time_str = f"{adjusted_time[3]:02}:{adjusted_time[4]:02}:{adjusted_time[5]:02}"
+    oled.fill(0)
+    oled.text("Date:", 0, 0)
+    oled.text(date, 0, 10)
+    oled.text("Time:", 0, 30)
+    oled.text(time_str, 0, 40)
+    oled.show()
+
 # Main Function
 def main():
+    led.value(0)
     global latitude, longitude,ti
     connect_wifi()
+    sleep_ms(500)
     ntp.settime()
-    get_local_time() # calling time 
-
+    adjusted_time = get_local_time() # calling time 
+    print("NTP Time:", adjusted_time)
+    display_time(adjusted_time)
     mqtt_client = setup_mqtt()
     # time to display 
     ti=str(adjusted_time[3])+":"+str(adjusted_time[4])+":"+str(adjusted_time[5])
     
     while True:
-        oled.fill(0)
-        oled.text(ti,50,10)
+        display_time(adjusted_time)
+        print(ti)
         print("Fetching GPS data...")
         if not getGPS(gps):
             print("No GPS data. Using fallback location.")
@@ -169,12 +183,18 @@ def main():
         if not but.value():
             message = f"Help needed! Location: https://www.google.com/maps?q={latitude},{longitude}&z=17&hl=en"
             send_sms(recipient_num, sender_num, message, auth_token, account_sid)
-            buz.value(0)
             oled.fill(0)
             oled.text("sms sent",0,0)
+            oled.show()
             sleep(5)
         sleep(30)
 
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+

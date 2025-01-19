@@ -19,7 +19,7 @@ FEED_NAME = "location-alert"  # Make sure this matches your feed name exactly
 TWILIO_SID =  twilio_sid
 TWILIO_AUTH_TOKEN = twilio_tok
 TWILIO_PHONE_NUMBER = twilio_num
-TO_PHONE_NUMBER = '+919488790964' # The phone number to send the SMS to
+TO_PHONE_NUMBER = "+91xxxxxxxxxx" # The phone number to send the SMS to
 
 # Wi-Fi Credentials
 ssid=bps_ssid     # your network/hotspot/ssid name.

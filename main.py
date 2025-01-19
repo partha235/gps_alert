@@ -1,14 +1,201 @@
-from machine import Pin,SoftI2C
+import network
+from umqtt.simple import MQTTClient
+from machine import Pin, UART, SoftI2C
 import ssd1306
+from utime import sleep, sleep_ms, time, localtime, mktime
+import ntptime as ntp
+import gc
+import urequests as requests
 
-#You can choose any other combination of I2C pins
-i2c = SoftI2C(scl=Pin(12), sda=Pin(13)) 
-print(i2c.scan())
-print("hi")
+# Replace these with your Adafruit IO credentials
+ADAFRUIT_IO_URL = 'io.adafruit.com'
+ADAFRUIT_IO_USERNAME = 'adafruit_username'  # Replace with your Adafruit IO username
+ADAFRUIT_IO_KEY = 'adafruit_key'  # Replace with your Adafruit IO key
+FEED_NAME = "Feed"  # Ensure it matches the feed name in Adafruit IO
+
+# Twilio SMS credentials
+recipient_num = "+91xxxxxxxxxx"  # Replace with recipient's phone number
+sender_num = "+1xxxxxxxxxx"  # Replace with your Twilio number
+auth_token = "twilio_tok"  # Replace with your Twilio Auth Token
+account_sid = "twilio_ssid"  # Replace with your Twilio SID
+
+# MQTT Client ID
+mqtt_client_id = b'bps'
+
+# Wi-Fi credentials
+# Wi-Fi credentials
+SSID =" bps_ssid"
+PASSWORD = "bps_passw"
+
+# GPS fallback coordinates
+DEFAULT_LATITUDE = 11.384609
+DEFAULT_LONGITUDE = 79.697655
+
+# Time Zone Offset (e.g., IST = UTC+5:30 = 19800 seconds)
+TIME_ZONE_OFFSET = 5 * 3600 + 30 * 60
+
+# Pins
+but = Pin(15, Pin.IN, Pin.PULL_UP)
+led = Pin(33,Pin.OUT)
+
+
+# I2C and OLED Display
+i2c = SoftI2C(scl=Pin(13), sda=Pin(2)) 
 oled_width = 128
 oled_height = 64
 oled = ssd1306.SSD1306_I2C(oled_width, oled_height, i2c)
 
-oled.fill(0)                                                                                                        
-oled.text('Saga', 0, 0)
-oled.show()
+# GPS module setup
+gps = UART(1, baudrate=9600, bits=8, parity=None, stop=1, rx=14, tx=16)
+
+# Initialize variables
+latitude = None
+longitude = None
+gc.collect()
+
+
+# Wi-Fi Connection
+def connect_wifi():
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    if not wlan.isconnected():
+        print("Connecting to WiFi...")
+        wlan.connect(SSID, PASSWORD)
+        sleep_ms(200)
+        while not wlan.isconnected():
+            pass
+    print("Connected! IP address:", wlan.ifconfig()[0])
+
+
+# GPS Parsing Function
+def getGPS(gpsModule):
+    global latitude, longitude
+    timeout = time() + 5  # 5-second timeout
+    while True:
+        line = gpsModule.readline()
+        if line:
+            buff = str(line)
+            parts = buff.split(',')
+            if parts[0] == "b'$GPGGA" and len(parts) == 15:
+                if all(parts[1:8]):
+                    latitude = convertToDegree(parts[2])
+                    if parts[3] == 'S':
+                        latitude = -latitude
+                    longitude = convertToDegree(parts[4])
+                    if parts[5] == 'W':
+                        longitude = -longitude
+                    print(f"GPS Data: Latitude={latitude}, Longitude={longitude}")
+                    return True
+        if time() > timeout:
+            return False
+        sleep_ms(10)
+
+
+# Convert GPS Coordinates to Degrees
+def convertToDegree(rawDegrees):
+    rawAsFloat = float(rawDegrees)
+    firstdigits = int(rawAsFloat / 100)
+    nexttwodigits = rawAsFloat - float(firstdigits * 100)
+    converted = float(firstdigits + nexttwodigits / 60.0)
+    return '{0:.6f}'.format(converted)
+
+
+# MQTT Setup
+def setup_mqtt():
+    client = MQTTClient(client_id=mqtt_client_id, 
+                        server=ADAFRUIT_IO_URL, 
+                        user=ADAFRUIT_IO_USERNAME, 
+                        password=ADAFRUIT_IO_KEY,
+                        ssl=False)
+    client.connect()
+    return client
+
+
+# Publish Location to MQTT
+def publish_location(client, latitude, longitude):
+    payload = f"{latitude},{longitude}"
+    try:
+        topic = f"{ADAFRUIT_IO_USERNAME}/feeds/{FEED_NAME}/csv"
+        client.publish(topic, payload)
+        print("Location published to MQTT:", payload)
+    except Exception as e:
+        print("Error publishing location:", e)
+
+
+# Send SMS via Twilio
+def send_sms(recipient, sender, message, auth_token, account_sid):
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    data = f"To={recipient}&From={sender}&Body={message}"
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+    try:
+        response = requests.post(url, data=data, auth=(account_sid, auth_token), headers=headers)
+        if response.status_code == 201:
+            print("SMS sent successfully!")
+        else:
+            print("Failed to send SMS:", response.text)
+    except Exception as e:
+        print("Error sending SMS:", e)
+
+
+# Local Time with Time Zone Adjustment
+def get_local_time():
+    utc_time = localtime()
+    local_time = mktime(utc_time) + TIME_ZONE_OFFSET
+    return localtime(local_time)
+
+
+# Display Time on OLED
+def display_time(adjusted_time):
+    date = f"{adjusted_time[2]:02}/{adjusted_time[1]:02}/{adjusted_time[0]}"
+    time_str = f"{adjusted_time[3]:02}:{adjusted_time[4]:02}:{adjusted_time[5]:02}"
+    oled.fill(0)
+    oled.text("Date:", 0, 0)
+    oled.text(date, 0, 10)
+    oled.text("Time:", 0, 30)
+    oled.text(time_str, 0, 40)
+    oled.show()
+
+# Main Function
+def main():
+    led.value(0)
+    global latitude, longitude,ti
+    connect_wifi()
+    sleep_ms(500)
+    ntp.settime()
+    adjusted_time = get_local_time() # calling time 
+    print("NTP Time:", adjusted_time)
+    display_time(adjusted_time)
+    mqtt_client = setup_mqtt()
+    # time to display 
+    ti=str(adjusted_time[3])+":"+str(adjusted_time[4])+":"+str(adjusted_time[5])
+    
+    while True:
+        display_time(adjusted_time)
+        print(ti)
+        print("Fetching GPS data...")
+        if not getGPS(gps):
+            print("No GPS data. Using fallback location.")
+            latitude = DEFAULT_LATITUDE
+            longitude = DEFAULT_LONGITUDE
+
+        publish_location(mqtt_client, latitude, longitude)
+
+        # Button Alert
+        if not but.value():
+            message = f"Help needed! Location: https://www.google.com/maps?q={latitude},{longitude}&z=17&hl=en"
+            send_sms(recipient_num, sender_num, message, auth_token, account_sid)
+            oled.fill(0)
+            oled.text("sms sent",0,0)
+            oled.show()
+            sleep(5)
+        sleep(30)
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+
+
