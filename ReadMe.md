@@ -75,3 +75,5 @@ This GPS-based location-sharing device can be used in various applications:
 - **Enhanced Security**: Add authentication to prevent unauthorized access to the device’s SMS functionality.
 
 [adafruit io notes](https://learn.adafruit.com/adafruit-io/mqtt-api)
+
+[circuit-digest sms service](https://circuitdigest.com/article/free-sms-api-for-arduino-esp32-esp8266-nodemcu-raspberry-pi)
