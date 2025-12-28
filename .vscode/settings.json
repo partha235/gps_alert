@@ -4,6 +4,7 @@
         "GPGGA",
         "mktime",
         "nexttwodigits",
-        "Nokiabps"
+        "Nokiabps",
+        "rnum"
     ]
 }
