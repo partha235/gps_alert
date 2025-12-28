@@ -5,6 +5,7 @@
         "mktime",
         "nexttwodigits",
         "Nokiabps",
-        "rnum"
+        "rnum",
+        "snum"
     ]
 }
