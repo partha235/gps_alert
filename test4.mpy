@@ -12,14 +12,14 @@ except:
 
 gc.collect()
 
-ssid=bps_ssid     # your network/hotspot/ssid name.
-password=bps_passw    # your network/hotspot/ssid password.
+ssid='bps_wifi'     # your network/hotspot/ssid name.
+password='sagabps@235'   # your network/hotspot/ssid password.
 
-# Your Account SID and Auth Token from twilio.com/console
-account_sid = twilio_sid
-auth_token = twilio_tok
-recipient_num = '+919488790964'
-sender_num = twilio_num
+# Twilio SMS credentials
+recipient_num = "+91xxxxxxxxxx"  # Replace with recipient's phone number
+sender_num = "+1xxxxxxxxxx"  # Replace with your Twilio number
+auth_token = "twilio_tok"  # Replace with your Twilio Auth Token
+account_sid = "twilio_ssid"  # Replace with your Twilio SID
 
 def send_sms(recipient, sender,
              message, auth_token, account_sid):

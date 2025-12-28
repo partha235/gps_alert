@@ -7,6 +7,7 @@ print("hi")
 led = Pin(33, Pin.OUT)  # Changed to Pin.OUT for controlling LED status
 gc.collect()
 
+count=0
 # GPS Module Setup
 gpsModule = UART(2, baudrate=9600)  # UART for GPS communication
 
@@ -66,8 +67,8 @@ while True:
     led.on()  # Turn LED on to indicate the loop is running
     
     getGPS(gpsModule)  # Get the GPS data
-    
-    print("working")
+    count+=1
+    print("working",count)
 
     if FIX_STATUS:
         print("Printing GPS data...")
