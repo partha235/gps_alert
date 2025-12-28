@@ -12,8 +12,8 @@ led = Pin(2,Pin.OUT)
 
 # Adafruit IO Credentials
 ADAFRUIT_IO_URL = 'io.adafruit.com'
-ADAFRUIT_IO_USERNAME = "kathier03"  # Replace with your Adafruit IO username
-ADAFRUIT_IO_KEY =  "aio_dnhn40OE7wfXgOscT2z4hoVS2MHi"  # Replace with your Adafruit IO key
+ADAFRUIT_IO_USERNAME = "user_name"  # Replace with your Adafruit IO username
+ADAFRUIT_IO_KEY =  "aio_key"  # Replace with your Adafruit IO key
 FEED_NAME = "carloc" # Ensure it matches the feed name in Adafruit IO
 
 # Twilio SMS credentials
